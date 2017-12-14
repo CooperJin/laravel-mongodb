@@ -1149,4 +1149,71 @@ class Builder extends BaseBuilder
 
         return parent::__call($method, $parameters);
     }
+
+    /**
+     * Retrieve the "count" result of the query.
+     *
+     * @param array $columns
+     * @return int
+     */
+    public function count($columns = [])
+    {
+        // If no columns have been specified for the select statement, we will set them
+        // here to either the passed columns, or the standard default of retrieving
+        // all of the columns on the table using the "wildcard" column character.
+        if (is_null($this->columns)) {
+            $this->columns = $columns;
+        }
+
+        // Drop all columns if * is present, MongoDB does not work this way.
+        if (in_array('*', $this->columns)) {
+            $this->columns = [];
+        }
+
+        //Get the compiled wheres
+        $wheres = $this->compileWheres();
+
+        $columns = [];
+
+        // Convert select columns to simple projections.
+        foreach ($this->columns as $column) {
+            $columns[$column] = true;
+        }
+
+        // Add custom projections.
+        if ($this->projections) {
+            $columns = array_merge($columns, $this->projections);
+        }
+        $options = [];
+
+        // Apply order, offset, limit and projection
+        if ($this->timeout) {
+            $options['maxTimeMS'] = $this->timeout;
+        }
+        if ($this->orders) {
+            $options['sort'] = $this->orders;
+        }
+        if ($this->offset) {
+            $options['skip'] = $this->offset;
+        }
+        if ($this->limit) {
+            $options['limit'] = $this->limit;
+        }
+        if ($columns) {
+            $options['projection'] = $columns;
+        }
+        // if ($this->hint)    $cursor->hint($this->hint);
+
+        // Fix for legacy support, converts the results to arrays instead of objects.
+        $options['typeMap'] = ['root' => 'array', 'document' => 'array'];
+
+        // Add custom query options
+        if (count($this->options)) {
+            $options = array_merge($options, $this->options);
+        }
+
+        $count = $this->collection->count($wheres, $options);
+
+        return $count;
+    }
 }
